@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <string.h>
+#include <signal.h>
 
 /* writes formated logline about entered cmd into stream */
 void log_cmd(FILE *stream, char const *str_time, char *buff);
@@ -18,6 +19,17 @@ char **split_cmdline(char const *cmdLine, int *argSize);
 
 int main(void)
 {
+    /* handling signals */
+    
+    sigset_t blocked_set, blocked_oldset;
+    sigemptyset(&blocked_set);
+    sigaddset(&blocked_set, SIGINT);
+    
+    if (sigprocmask(SIG_BLOCK, &blocked_set, &blocked_oldset) == -1) {
+        perror("sigprocmask SIG_BLOCK");
+        return 1;
+    }
+
     /* Logging data */
     time_t currentTime;
     char *str_time = NULL;
@@ -39,15 +51,14 @@ int main(void)
         rm_newlc(str_time); /* Deleting new line symbol */
 
         printf("[%s] Enter the command: ", str_time);
-        if((nread = getline(&cmdLine, &size, stdin)) == -1 || nread == 0) {
-            log_errinp(logStream, str_time);
-            continue;
-        }
-        rm_newlc(cmdLine);
-        
-        if(strcmp(cmdLine, "exit") == 0) {
+        nread = getline(&cmdLine, &size, stdin);
+
+        if(cmdLine[nread-1] == EOF || nread == -1) {
             isRunning = 0;
-            continue;
+        }
+
+        if(strstr(cmdLine, "exit") != NULL) {
+            isRunning = 0;
         }
 
         pid_t cmdPid = fork();
@@ -60,6 +71,7 @@ int main(void)
             /* if in first path didn't work */
             sprintf(execBuff, "/usr/bin/%s", cmdArgs[0]);
             execv(execBuff, cmdArgs);
+            exit(3);
         } else {
             waitpid(cmdPid, NULL, 0);
         }
@@ -118,10 +130,6 @@ char **split_cmdline(char const *cmdLine, int *argSize)
     }
     
     argBuf[wordCount] = NULL;
-
-    /* watch which args passed: 
-    for(i = 0; i < wordCount; i++) printf("%s\n", argBuf[i]); */   
-
     
     *argSize = wordCount;
 
