@@ -1,2 +1,4 @@
-./myshell
-./TODO.txt
+myshell
+TODO.txt
+
+.redir_stdout.txt
